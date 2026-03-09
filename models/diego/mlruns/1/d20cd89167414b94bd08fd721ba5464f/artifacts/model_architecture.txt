@@ -1,0 +1,6 @@
+ClassificationModel(
+  (model): Sequential(
+    (0): Linear(in_features=9, out_features=32, bias=True)
+    (1): Linear(in_features=32, out_features=2, bias=True)
+  )
+)

@@ -1,0 +1,14 @@
+artifact_uri: file:///home/dagudelo/Projects/mlops/models/adrien/mlruns/319740347204362983/e6d28133f92040f3ab6a1960dbaed7f4/artifacts
+end_time: 1773051690149
+entry_point_name: ''
+experiment_id: '319740347204362983'
+lifecycle_stage: active
+run_id: e6d28133f92040f3ab6a1960dbaed7f4
+run_name: handsome-mare-505
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1773051663269
+status: 3
+tags: []
+user_id: dagudelo

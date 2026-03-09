@@ -1,0 +1,14 @@
+artifact_uri: file:///home/dagudelo/Projects/mlops/models/adrien/mlruns/319740347204362983/a804be5c88954bcd9dd96f7d2aab9f73/artifacts
+end_time: 1773052687812
+entry_point_name: ''
+experiment_id: '319740347204362983'
+lifecycle_stage: active
+run_id: a804be5c88954bcd9dd96f7d2aab9f73
+run_name: dazzling-cod-830
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1773052632356
+status: 3
+tags: []
+user_id: dagudelo

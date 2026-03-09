@@ -1,0 +1,14 @@
+artifact_uri: file:///home/dagudelo/Projects/mlops/models/adrien/mlruns/319740347204362983/9ebc028961f946408d6e491986b9f1e4/artifacts
+end_time: 1773052629545
+entry_point_name: ''
+experiment_id: '319740347204362983'
+lifecycle_stage: active
+run_id: 9ebc028961f946408d6e491986b9f1e4
+run_name: rumbling-bear-214
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1773052570374
+status: 3
+tags: []
+user_id: dagudelo

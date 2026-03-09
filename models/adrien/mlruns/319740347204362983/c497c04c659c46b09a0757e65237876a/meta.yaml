@@ -1,0 +1,14 @@
+artifact_uri: file:///home/dagudelo/Projects/mlops/models/adrien/mlruns/319740347204362983/c497c04c659c46b09a0757e65237876a/artifacts
+end_time: 1773052703635
+entry_point_name: ''
+experiment_id: '319740347204362983'
+lifecycle_stage: active
+run_id: c497c04c659c46b09a0757e65237876a
+run_name: intrigued-skunk-830
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1773052700623
+status: 3
+tags: []
+user_id: dagudelo
