@@ -81,6 +81,16 @@ class DataLoaderCsv:
         y = torch.tensor(y.values, dtype=torch.long)
 
         return X, y
+    
+    def ft_get_data_from_file_titanic(self, path_submission):
+        file_y = pd.read_csv(path_submission)
+        y = file_y["Survived"]
+        X = self.df
+
+        X = torch.tensor(X.values, dtype=torch.float32)
+        y = torch.tensor(y.values, dtype=torch.long)
+
+        return X, y
         
 
         
