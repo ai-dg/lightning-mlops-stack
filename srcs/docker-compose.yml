@@ -1,0 +1,121 @@
+services:
+
+  # ── Monitoring ─────────────────────────────────────────────────────────────
+  # https://hub.docker.com/r/grafana/grafana
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:latest
+    ports:
+      - "${GRAFANA_PORT}:3000"
+    volumes:
+      - model:/usr/share/model/
+
+  # ── Metrics ────────────────────────────────────────────────────────────────
+  # https://hub.docker.com/hardened-images/catalog/dhi/mlflow
+  postgres_mlflow:
+    image: dhi.io/postgres:3
+    environment:
+      POSTGRES_USER: mlflow
+      POSTGRES_PASSWORD: mlflow
+      POSTGRES_DB: mlflowdb
+    volumes:
+      - mlflow-db:/var/lib/postgresql/data
+
+  # Attention : conversion des artefacts en objets S3
+  minio:
+    image: dhi.io/minio:3
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data
+    ports:
+      - "9000:9000"
+    volumes:
+      - mlflow-minio:/data
+
+  mlflow:
+    image: dhi.io/mlflow:3
+    container_name: mlflow-server
+    ports:
+      - "5000:5000"
+    environment:
+      - MLFLOW_SERVER_HOST=0.0.0.0
+      - MLFLOW_SERVER_PORT=5000
+      - BACKEND_STORE_URI=postgresql+psycopg2://mlflow:mlflow@postgres:5432/mlflowdb
+      - ARTIFACT_ROOT=s3://mlflow-artifacts
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+    command: >
+      mlflow server
+      --backend-store-uri ${BACKEND_STORE_URI}
+      --default-artifact-root ${ARTIFACT_ROOT}
+      --host 0.0.0.0
+      --port ${MLFLOW_SERVER_PORT}
+    depends_on:
+      - postgres
+      - minio
+
+  # ── API ────────────────────────────────────────────────────────────────────
+  fastapi:
+    build:
+      # context: ./services
+      dockerfile: ./api/Dockerfile
+    expose:
+      - 4243
+    ports:
+      - "4243:4243"
+
+  # ── Gateway ────────────────────────────────────────────────────────────────
+  nginx:
+    build:
+      context: ./services
+      dockerfile: ./nginx/Dockerfile
+
+  # ── Database ───────────────────────────────────────────────────────────────
+  postgres:
+    build:
+      context: ./services
+      dockerfile: ./postgresql/Dockerfile
+
+  # ── Frontend ───────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      dockerfile: ./frontend/Dockerfile
+
+# ── Volumes ──────────────────────────────────────────────────────────────────
+volumes:
+  postgres:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: $(PWD)/data/postgres
+
+  postgres_mlflow:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: $(PWD)/data/postgres_mlflow
+
+  mlflow-db:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: $(PWD)/data/mlflow
+
+  mlflow-minio:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: $(PWD)/data/minio
+
+  model:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: $(PWD)/model
