@@ -18,10 +18,21 @@
 # hasGuestRoom - number of guest rooms
 # price - predicted value
 
+from sqlite3 import Cursor
+from turtle import update
+import numpy as np
 import pandas as pd
 from torch.utils.data import DataLoader as DL, TensorDataset
 import lightning as L
 
+
+def erase_str(value :str):
+
+
+    return value[:3]
+
+def series_function(self):
+    return
 
 class DataLoaderClass(L.LightningDataModule):
 
@@ -71,12 +82,22 @@ class DataLoaderClass(L.LightningDataModule):
     def delete_features(self, features:list[str]) :
         self.df = self.df.drop(features)
 
+    
+
     def feature_engineering(self):
         self.df = self.df.loc[:,self.features]
 
         self.df = self.df.dropna(subset="CompTotal")
 
-        # self.df["Currency"] = 
+        # self.df["Currency"] = [value - 10 for key, value in self.df["Currency"]]
+
+        # for value in self.df["Currency"]:
+        #     print(value)
+
+
+        self.df["Currency"] = self.df["Currency"].apply(erase_str)
+
+        print(self.df["Currency"].unique())
 
 
     def __str__(self):
@@ -85,7 +106,35 @@ class DataLoaderClass(L.LightningDataModule):
 
 
         return resume + "\n" + columns
+    
+    
+    def update_currency(self):
 
+        Salary_max = 999999
+        Salary_min = 1000
+
+        currency_table  = pd.read_csv("./datasets/currecy_2025.csv")
+
+        series_rate = currency_table.set_index("currency")['Value']
+        rate = self.df["Currency"].map(series_rate)
+        self.df["CompTotalEuro"] = self.df["CompTotal"] * rate
+        self.df["CompTotalEuro"] = np.where(self.df["CompTotalEuro"] > Salary_max, np.nan, self.df["CompTotalEuro"])
+        self.df["CompTotalEuro"] = np.where(self.df["CompTotalEuro"] < Salary_min, np.nan, self.df["CompTotalEuro"])
+        self.df = self.df.dropna(subset="CompTotalEuro")
+
+        print(self.df["CompTotalEuro"])
+        print(self.df["CompTotal"])
+        print(self.df.describe())
+
+        # self.df["Currency"] = currency_table.loc[self.df["Currency"]]
+        # print(f"Currency : {currency_table.loc[self.df['Currency']]}")
+        # self.df["CompTotal"] = self.df["CompTotal"] * currency_table.loc[:, self.df["Currency"]]
+
+
+
+        
+
+        
 
 def main():
     datapreprocess = DataLoaderClass("./datasets/survey_results_public.csv")
@@ -93,9 +142,16 @@ def main():
 
     print(datapreprocess)
 
-    print(len(datapreprocess.df["Country"].unique()))
-    print(datapreprocess.df["Currency"].unique())
-    print(datapreprocess.df["CompTotal"])
+    datapreprocess.update_currency()
+
+
+
+    # print(len(datapreprocess.df["Country"].unique()))
+    # print(datapreprocess.df["Currency"].unique())
+    # print(datapreprocess.df["CompTotal"])
+
+
+    print(datapreprocess)
 
 
 
