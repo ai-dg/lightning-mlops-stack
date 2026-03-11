@@ -121,15 +121,18 @@ class DataLoaderClass(L.LightningDataModule):
         self.df["CompTotalEuro"] = np.where(self.df["CompTotalEuro"] > Salary_max, np.nan, self.df["CompTotalEuro"])
         self.df["CompTotalEuro"] = np.where(self.df["CompTotalEuro"] < Salary_min, np.nan, self.df["CompTotalEuro"])
         self.df = self.df.dropna(subset="CompTotalEuro")
-
+        # self.df = self.df.reset_index()
+        self.df.to_csv("./datasets/result_clean.csv")
         print(self.df["CompTotalEuro"])
         print(self.df["CompTotal"])
         print(self.df.describe())
+        # print(f"Sum nan country : {sum(self.df['Country'] == np.nan)}")
+        # print(f" Sum nan country {self.df.loc[self.df['Country'] == np.nan].sum()}")
+        self.df['Country'].isna()
 
         # self.df["Currency"] = currency_table.loc[self.df["Currency"]]
         # print(f"Currency : {currency_table.loc[self.df['Currency']]}")
         # self.df["CompTotal"] = self.df["CompTotal"] * currency_table.loc[:, self.df["Currency"]]
-
 
 
         
