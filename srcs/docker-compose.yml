@@ -1,125 +1,125 @@
 services:
   # ── Monitoring ─────────────────────────────────────────────────────────────
   grafana:
-    container_name: grafana
-    image: grafana/grafana:latest
-    ports:
-      - "${GRAFANA_PORT:-3000}:3000"
-    volumes:
-      - model:/usr/share/model/
+	container_name: grafana
+	image: grafana/grafana:latest
+	ports:
+	  - "${GRAFANA_PORT:-3000}:3000"
+	volumes:
+	  - model:/usr/share/model/
 
   # ── Metrics (MLflow) ───────────────────────────────────────────────────────
   postgres_mlflow:
-    container_name: postgres_mlflow
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: mlflow
-      POSTGRES_PASSWORD: mlflow
-      POSTGRES_DB: mlflowdb
-    volumes:
-      - mlflow-db:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mlflow"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+	container_name: postgres_mlflow
+	image: postgres:15-alpine
+	environment:
+	  POSTGRES_USER: mlflow
+	  POSTGRES_PASSWORD: mlflow
+	  POSTGRES_DB: mlflowdb
+	volumes:
+	  - mlflow-db:/var/lib/postgresql/data
+	healthcheck:
+	  test: ["CMD-SHELL", "pg_isready -U mlflow"]
+	  interval: 5s
+	  timeout: 5s
+	  retries: 5
 
   minio:
-    container_name: minio
-    image: minio/minio:latest
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    command: server /data
-    ports:
-      - "9000:9000"
-    volumes:
-      - mlflow-minio:/data
+	container_name: minio
+	image: minio/minio:latest
+	environment:
+	  MINIO_ROOT_USER: minioadmin
+	  MINIO_ROOT_PASSWORD: minioadmin
+	command: server /data
+	ports:
+	  - "9000:9000"
+	volumes:
+	  - mlflow-minio:/data
 
   mlflow:
-    container_name: mlflow-server
-    image: ghcr.io/mlflow/mlflow:v2.17.0
-    ports:
-      - "${MLFLOW_SERVER_PORT:-5000}:5000"
-    environment:
-      MLFLOW_SERVER_HOST: 0.0.0.0
-      MLFLOW_SERVER_PORT: 5000
-      BACKEND_STORE_URI: postgresql+psycopg2://mlflow:mlflow@postgres_mlflow:5432/mlflowdb
-      ARTIFACT_ROOT: s3://mlflow-artifacts
-      AWS_ACCESS_KEY_ID: minioadmin
-      AWS_SECRET_ACCESS_KEY: minioadmin
-      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
-    command: >
-      mlflow server
-      --backend-store-uri postgresql+psycopg2://mlflow:mlflow@postgres_mlflow:5432/mlflowdb
-      --default-artifact-root s3://mlflow-artifacts
-      --host 0.0.0.0
-      --port 5000
-    depends_on:
-      postgres_mlflow:
-        condition: service_healthy
-      minio:
-        condition: service_started
+	container_name: mlflow-server
+	image: ghcr.io/mlflow/mlflow:v2.17.0
+	ports:
+	  - "${MLFLOW_SERVER_PORT:-5000}:5000"
+	environment:
+	  MLFLOW_SERVER_HOST: 0.0.0.0
+	  MLFLOW_SERVER_PORT: 5000
+	  BACKEND_STORE_URI: postgresql+psycopg2://mlflow:mlflow@postgres_mlflow:5432/mlflowdb
+	  ARTIFACT_ROOT: s3://mlflow-artifacts
+	  AWS_ACCESS_KEY_ID: minioadmin
+	  AWS_SECRET_ACCESS_KEY: minioadmin
+	  MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+	command: >
+	  mlflow server
+	  --backend-store-uri postgresql+psycopg2://mlflow:mlflow@postgres_mlflow:5432/mlflowdb
+	  --default-artifact-root s3://mlflow-artifacts
+	  --host 0.0.0.0
+	  --port 5000
+	depends_on:
+	  postgres_mlflow:
+		condition: service_healthy
+	  minio:
+		condition: service_started
 
   # ── API ────────────────────────────────────────────────────────────────────
   fastapi:
-    container_name: fastapi
-    build:
-      context: ./api
-      dockerfile: Dockerfile
-    expose:
-      - 4243
-    ports:
-      - "4243:4243"
+	container_name: fastapi
+	build:
+	  context: ./api
+	  dockerfile: Dockerfile
+	expose:
+	  - 4243
+	ports:
+	  - "4243:4243"
 
   # ── Gateway ────────────────────────────────────────────────────────────────
   nginx:
-    container_name: nginx
-    build:
-      context: ./services/nginx
-      dockerfile: Dockerfile
+	container_name: nginx
+	build:
+	  context: ./services/nginx
+	  dockerfile: Dockerfile
 
   # ── Database (app) ────────────────────────────────────────────────────────
   postgres:
-    container_name: postgres
-    build:
-      context: ./services/postgresql
-      dockerfile: Dockerfile
-    volumes:
-      - postgres:/var/lib/postgresql/data
+	container_name: postgres
+	build:
+	  context: ./services/postgresql
+	  dockerfile: Dockerfile
+	volumes:
+	  - postgres:/var/lib/postgresql/data
 
   # ── Frontend ───────────────────────────────────────────────────────────────
   streamlite:
-    container_name: streamlite
-    build:
-      context: ./services/streamlite
-      dockerfile: Dockerfile
+	container_name: streamlite
+	build:
+	  context: ./services/streamlite
+	  dockerfile: Dockerfile
 
 volumes:
   postgres:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/srcs/data/postgres
+	driver: local
+	driver_opts:
+	  type: none
+	  o: bind
+	  device: ${PWD}/srcs/data/postgres
 
   mlflow-db:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/srcs/data/postgres_mlflow
+	driver: local
+	driver_opts:
+	  type: none
+	  o: bind
+	  device: ${PWD}/srcs/data/postgres_mlflow
 
   mlflow-minio:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/srcs/data/minio
+	driver: local
+	driver_opts:
+	  type: none
+	  o: bind
+	  device: ${PWD}/srcs/data/minio
 
   model:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/srcs/data/artifacts
+	driver: local
+	driver_opts:
+	  type: none
+	  o: bind
+	  device: ${PWD}/srcs/data/artifacts

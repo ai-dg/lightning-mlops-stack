@@ -2,6 +2,6 @@ import fastapi
 import model
 
 def main():
-    fastapi.APIRouter()
+	fastapi.APIRouter()
 
-    
+	
