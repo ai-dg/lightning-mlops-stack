@@ -340,26 +340,10 @@ class DataLoaderClass(L.LightningDataModule):
 	def replace_nan_frequent(self, features: list[str]):
 		self.df[features] = self.df[features].fillna(self.df[features].mode())
 
-	def expand_features(self, to_expand: list[str]):
-		for feature in to_expand:
-			valid_answers = get_features_answers(feature)
-			if valid_answers is None:
-				raise ValueError("Features Doesnt Exists")
+	def ordinal_encoding(self, features: list[str]):
+		return
 
-			other_type = feature + "Other"
-
-			valid_answers.append(other_type)
-
-			# Create a dictionary of your new features filled with NaN
-			new_cols_dict = {feat: 0 for feat in valid_answers}
-
-			# Convert that dictionary to a DataFrame
-			#new_features_df = pd.DataFrame(new_cols_dict, index=self.df.index)
-
-			# Join them all at once
-			#self.df = pd.concat([self.df, new_features_df], axis=1)
-
-	def hot_one_encoding(self, initial_features: list[str]):
+	def one_hot_encoding(self, initial_features: list[str]):
 		for i, feature in enumerate(initial_features):
 			valid_answers = get_features_answers(feature)
 
@@ -367,59 +351,80 @@ class DataLoaderClass(L.LightningDataModule):
 			#Split Examples (Answers), transform NaN Values to empty list
 			data = self.df[feature].str.split(';').apply(lambda x: x if isinstance(x, list) else [])
 
+
 			#Use Scikit Learn to Hot One Encode feature (Add new boolean features for each possible answer)
 			#NaN put 0 to every possible answer
 			mlb = MultiLabelBinarizer(classes=valid_answers)
 
 			res = mlb.fit_transform(data)
 
-			expanded_df = pd.DataFrame(res, columns=mlb.classes_, index=self.df.index)
+			#Create genereic name for the new columns
+			expanded_features_name = [f"{feature}_{i}" for i in range(1, len(valid_answers) + 1)]
 
+			#Transform new columns into a Dataframe
+			expanded_df = pd.DataFrame(res, columns=expanded_features_name, index=self.df.index)
+
+			#Add extra invalid answers into a new column feature_Other
 			valid_set = set(valid_answers)
 
-
-			other_type = feature + "Other"
+			other_type = feature + "_Other"
 		
 			self.df[other_type] = data.apply(
 				lambda x: 1 if any(item not in valid_set for item in x) else 0
 			)
 
+			#Add Expanded Features Dataframe to the initial dataset
 			self.df = pd.concat([self.df, expanded_df], axis=1)
+
+		#Drop Initial Features
+		self.df.drop(columns=initial_features, inplace=True)
 		self.df.to_csv("Temp.csv")
 		print(self.df.shape)
 
 	def clean_data(self):
-		self.df = self.df.loc[:,self.features]
+		self.df = self.df[self.features].copy()
 
 		#Clean Currency
 		self.df = self.df.dropna(subset="CompTotal")
-		self.df["Currency"] = self.df["Currency"].apply(erase_str)
+		self.df.loc[:, "Currency"] = self.df["Currency"].apply(erase_str)
 		self.update_currency()
+
+		#Create EDA
+		profile = ProfileReport(self.df, title="Data (After Currency Cleaning)")
+		profile.to_file("reports/data_analysis.html")
 
 		#Replace nan with median value 
 		nan_to_replace_median = ["WorkExp", "YearsCode"]
 		self.replace_nan_median(nan_to_replace_median)
 
 		#Replace nan with most frequent value
-		#nan_to_replace_frequent = ["EdLevel"]
-		#self.replace_nan_median(nan_to_replace_frequent)
+		nan_to_replace_frequent = ["EdLevel"]
+		self.replace_nan_median(nan_to_replace_frequent)
 
-		#Expand features answer
-		to_expand = ["LearnCode",
-					"DevType",
-					"LanguageHaveWorkedWith",
-					"DatabaseHaveWorkedWith",
-					"PlatformHaveWorkedWith",
-					"WebframeHaveWorkedWith",
-					"DevEnvsHaveWorkedWith"]
+		#Ordinal Encode every Nominal Features with order importance
+		need_ordinal_encoding = ["MainBranch", "Age", "OrgSize"]
 
-		#self.expand_features(to_expand)
+		#One hot encode every Nominal Features with no order importance
+		need_hot_encoding = ["EdLevel",
+							"Employment",
+					   		"LearnCode",
+							"DevType",
+							"OrgSize",
+							"ICorPM",
+							"RemoteWork",
+							"Industry",
+							"LanguageHaveWorkedWith",
+							"DatabaseHaveWorkedWith",
+							"PlatformHaveWorkedWith",
+							"WebframeHaveWorkedWith",
+							"DevEnvsHaveWorkedWith"]
 
-		#Fix Open Choices Question
-		self.hot_one_encoding(to_expand)
+		need_feature_engineering = ["LearnCodeAI"]
+
+		self.one_hot_encoding(need_hot_encoding)
 		
 		#Add Fetures for each answer of multichoice questions
-		to_encode = ["MainBranch", "Age", "EdLevel", "Employement"]
+		#to_encode = ["MainBranch", "Age", "EdLevel", "Employement"]
 
 
 	def __str__(self):
@@ -434,15 +439,27 @@ class DataLoaderClass(L.LightningDataModule):
 		Salary_min = 1000
 		Salary_max = 999999
 
+		# Use float64 limit as a ceiling
+		FLOAT_MAX = np.finfo(np.float64).max
+
 		currency_table  = pd.read_csv("./datasets/currecy_2025.csv")
 
 		# Convert CompTotalEuro with its attached currency
 		series_rate = currency_table.set_index("currency")['Value']
 		rate = self.df["Currency"].map(series_rate)
-		self.df["CompTotalEuro"] = self.df["CompTotal"] * rate
-		self.df["CompTotalEuro"] = np.where(self.df["CompTotalEuro"] > Salary_max, np.nan, self.df["CompTotalEuro"])
-		self.df["CompTotalEuro"] = np.where(self.df["CompTotalEuro"] < Salary_min, np.nan, self.df["CompTotalEuro"])
-		self.df = self.df.dropna(subset="CompTotalEuro")
+
+		is_safe = (rate.notna()) & (rate > 0) & (self.df["CompTotal"] < (FLOAT_MAX / rate))
+
+		#Calculate Euro Value for safe input
+		self.df.loc[:, "CompTotalEuro"] = np.where(
+        is_safe, 
+        self.df["CompTotal"] * rate, 
+        np.nan
+    	)
+
+		#Spot Invalid Value and drop them
+		mask = (self.df["CompTotalEuro"] >= Salary_min) & (self.df["CompTotalEuro"] <= Salary_max)
+		self.df = self.df[mask].copy()
 
 		self.df.to_csv("./datasets/result_clean.csv")
 		
@@ -451,10 +468,6 @@ class DataLoaderClass(L.LightningDataModule):
 
 def main():
 	datapreprocess = DataLoaderClass("./datasets/survey_results_public.csv")
-
-	#profile = ProfileReport(datapreprocess.df, title="Test")
-	#profile.to_file("reports/data_analysis.html")
-
 
 if __name__ == "__main__":
 	main()
