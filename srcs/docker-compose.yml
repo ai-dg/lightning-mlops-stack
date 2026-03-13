@@ -8,22 +8,7 @@ services:
     volumes:
       - model:/usr/share/model/
 
-  # ── Metrics (MLflow) ───────────────────────────────────────────────────────
-  postgres_mlflow:
-    container_name: postgres_mlflow
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: mlflow
-      POSTGRES_PASSWORD: mlflow
-      POSTGRES_DB: mlflowdb
-    volumes:
-      - mlflow-db:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mlflow"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
+  # ── MinIO (Data Lake & Artifacts) ──────────────────────────────────────────
   minio:
     container_name: minio
     image: minio/minio:latest
@@ -35,7 +20,10 @@ services:
       - "9000:9000"
     volumes:
       - mlflow-minio:/data
+    networks:
+      - postgres_network # Ajouté pour que MLflow puisse le voir
 
+  # ── Metrics (MLflow) ───────────────────────────────────────────────────────
   mlflow:
     container_name: mlflow-server
     image: ghcr.io/mlflow/mlflow:v2.17.0
@@ -44,7 +32,7 @@ services:
     environment:
       MLFLOW_SERVER_HOST: 0.0.0.0
       MLFLOW_SERVER_PORT: 5000
-      BACKEND_STORE_URI: postgresql+psycopg2://mlflow:mlflow@postgres_mlflow:5432/mlflowdb
+      BACKEND_STORE_URI: postgresql+psycopg2://mlflow:mlflow@postgres_db:5432/mlflowdb
       ARTIFACT_ROOT: s3://mlflow-artifacts
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadmin
@@ -56,10 +44,12 @@ services:
       --host 0.0.0.0
       --port 5000
     depends_on:
-      postgres_mlflow:
+      postgres:
         condition: service_healthy
       minio:
         condition: service_started
+    networks:
+      - postgres_network
 
   # ── API ────────────────────────────────────────────────────────────────────
   fastapi:
@@ -81,12 +71,40 @@ services:
 
   # ── Database (app) ────────────────────────────────────────────────────────
   postgres:
-    container_name: postgres
-    build:
-      context: ./services/postgresql
-      dockerfile: Dockerfile
+    image: postgres:15-alpine
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
     volumes:
-      - postgres:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - postgres_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin_container
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+    networks:
+      - postgres_network
 
   # ── Frontend ───────────────────────────────────────────────────────────────
   streamlite:
@@ -96,26 +114,9 @@ services:
       dockerfile: Dockerfile
 
 volumes:
-  postgres:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/srcs/data/postgres
-
-  mlflow-db:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/srcs/data/postgres_mlflow
+  postgres_data:
 
   mlflow-minio:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/srcs/data/minio
 
   model:
     driver: local
@@ -123,3 +124,7 @@ volumes:
       type: none
       o: bind
       device: ${PWD}/srcs/data/artifacts
+
+networks:
+  postgres_network:
+    driver: bridge

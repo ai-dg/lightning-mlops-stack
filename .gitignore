@@ -1,2 +1,5 @@
 /srcs/logs/
 *.csv
+datasets/
+*.db
+.env
