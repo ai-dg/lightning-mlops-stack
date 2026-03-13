@@ -23,7 +23,8 @@ import pandas as pd
 from torch.utils.data import DataLoader as DL, TensorDataset
 import lightning as L
 from ydata_profiling import ProfileReport
-from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn.preprocessing import MultiLabelBinarizer, OrdinalEncoder, OneHotEncoder
+
 
 
 # 1 - Detect which features had NaN and what to replace it with
@@ -35,18 +36,20 @@ from sklearn.preprocessing import MultiLabelBinarizer
 def get_features_answers(feature: str):
 	match feature:
 		case "LearnCode":
-			return ["Technical documentation (is generated for/by the tool or system)",
-		   			"Games or coding challenges",
-		   			"Colleague or on-the-job training",
-		   			"Videos (not associated with specific online course or certification)",
-		   			"Online Courses or Certification (includes all media types)",
-		   			"Books / Physical media",
-		   			"Stack Overflow or Stack Exchange",
-		   			"AI CodeGen tools or AI-enabled apps",
-		   			"Blogs or podcasts",
-		   			"School (i.e., University, College, etc)",
-		   			"Other online resources (e.g. standard search, forum, online community)",
-		   			"Coding Bootcamp"]
+			return [
+				"Technical documentation (is generated for/by the tool or system)",
+				"Games or coding challenges",
+				"Colleague or on-the-job training",
+				"Videos (not associated with specific online course or certification)",
+				"Online Courses or Certification (includes all media types)",
+				"Books / Physical media",
+				"Stack Overflow or Stack Exchange",
+				"AI CodeGen tools or AI-enabled apps",
+				"Blogs or podcasts",
+				"School (i.e., University, College, etc)",
+				"Other online resources (e.g. standard search, forum, online community)",
+				"Coding Bootcamp"
+				]
 		
 		case "DevType":
 			return [
@@ -270,10 +273,18 @@ def get_features_answers(feature: str):
 				"Xcode",
 				"Zed"
 			]
-	return None
 
-	
-	
+		case "EdLevel":
+			return [
+				"Primary/elementary school",
+				"Secondary school (e.g. American high school, German Realschule or Gymnasium, etc.)",
+				"Some college/university study without earning a degree",
+				"Associate degree (A.A., A.S., etc.)",
+				"Bachelor’s degree (B.A., B.S., B.Eng., etc.)",
+				"Master’s degree (M.A., M.S., M.Eng., MBA, etc.)",
+				"Professional degree (JD, MD, Ph.D, Ed.D, etc.)"
+			]
+	return None
 	
 
 def erase_str(value :str):
@@ -316,9 +327,6 @@ class DataLoaderClass(L.LightningDataModule):
 		"AIAgents",
 	]
 
-
-
-
 	def __init__(self, path):
 		super().__init__()
 		try :
@@ -340,10 +348,28 @@ class DataLoaderClass(L.LightningDataModule):
 	def replace_nan_frequent(self, features: list[str]):
 		self.df[features] = self.df[features].fillna(self.df[features].mode())
 
-	def ordinal_encoding(self, features: list[str]):
-		return
+	def ordinal_encoding(self, initial_features: list[str]):
+		for i, feature in enumerate(initial_features):
+			valid_answers = get_features_answers(feature)
+
+			encoder = OrdinalEncoder(categories=[valid_answers])
+
+			self.df[feature] = encoder.fit_transform(self.df[feature])
 
 	def one_hot_encoding(self, initial_features: list[str]):
+		for i, feature in enumerate(initial_features):
+			encoder = OneHotEncoder(sparse_output=False)
+
+			one_hot = encoder.fit_transform(feature)
+
+			one_hot_df = pd.DataFrame(one_hot, columns=feature.name)
+
+			self.df = pd.concat([self.df, one_hot_df], axis=1)
+		
+		self.df.drop(columns=initial_features, inplace=True)
+
+
+	def multi_label_encoding(self, initial_features: list[str]):
 		for i, feature in enumerate(initial_features):
 			valid_answers = get_features_answers(feature)
 
@@ -380,6 +406,7 @@ class DataLoaderClass(L.LightningDataModule):
 		self.df.drop(columns=initial_features, inplace=True)
 		self.df.to_csv("Temp.csv")
 		print(self.df.shape)
+	
 
 	def clean_data(self):
 		self.df = self.df[self.features].copy()
@@ -402,26 +429,47 @@ class DataLoaderClass(L.LightningDataModule):
 		self.replace_nan_median(nan_to_replace_frequent)
 
 		#Ordinal Encode every Nominal Features with order importance
-		need_ordinal_encoding = ["MainBranch", "Age", "OrgSize"]
+		need_ordinal_encoding = ["EdLevel"]
 
 		#One hot encode every Nominal Features with no order importance
-		need_hot_encoding = ["EdLevel",
+		need_hot_encoding = [
+							"MainBranch",
+							"Age",
 							"Employment",
-					   		"LearnCode",
 							"DevType",
 							"OrgSize",
 							"ICorPM",
 							"RemoteWork",
-							"Industry",
+							"Industry"
+							]
+
+		need_multi_label_encoding = [
+							"LearnCode",
 							"LanguageHaveWorkedWith",
 							"DatabaseHaveWorkedWith",
 							"PlatformHaveWorkedWith",
 							"WebframeHaveWorkedWith",
-							"DevEnvsHaveWorkedWith"]
+							"DevEnvsHaveWorkedWith"
+							]
+		
+		need_target_encoding = ["Country"]
 
-		need_feature_engineering = ["LearnCodeAI"]
+		need_feature_engineering = [
+							"LearnCodeAI",
+							"AISelect",
+							"AIAgents"
+							]
 
-		self.one_hot_encoding(need_hot_encoding)
+		need_binary_encoding = [
+							"LanguageChoice",
+							"DatabaseChoice",
+							"PlatformChoice",
+							"WebframeChoice",
+							"DevEnvsChoice",
+							"AIModelsChoice"
+		]
+
+		self.multi_label_encoding(need_multi_label_encoding)
 		
 		#Add Fetures for each answer of multichoice questions
 		#to_encode = ["MainBranch", "Age", "EdLevel", "Employement"]
